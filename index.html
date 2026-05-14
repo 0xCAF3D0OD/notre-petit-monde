@@ -206,7 +206,7 @@
         isHit: false, hitAnimFrame: 0, hitAnimCounter: 0, hitAnimDuration: 0
       },
       bubbles: [], phone: null, joker: null, jokerSpawned: false, jokerCallable: true, lawyer: null,
-      bubbleSpawnRate: 0.015, effects: []
+      bubbleSpawnRate: 0.007, effects: []
     };
     let lastJumpKey = false;
     let yellFrameAdvanceCounter = 0;
@@ -637,7 +637,7 @@
         if (girlAnimationFrameAdvanceCounter >= 2.4) { currentGirlAnimFrame++; girlAnimationFrameAdvanceCounter = 0; }
         if (currentGirlAnimFrame >= 25) { currentGirlAnimFrame = 0; }
       }
-      game.bubbleSpawnRate = 0.015 + (30 - game.timeLeft) * 0.008;
+      game.bubbleSpawnRate = 0.007 + (30 - game.timeLeft) * 0.004;
       if (Math.random() < game.bubbleSpawnRate) { spawnBubble(); }
       spawnPhone();
       if (game.joker) {
