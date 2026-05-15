@@ -186,6 +186,17 @@
       }
       anim.available = anim.frames.length === 16;
     }
+    // Charger l'animation kick_ass du boss
+    for (const [animName, anim] of Object.entries(bossAnimations)) {
+      for (let i = 0; i < 16; i++) {
+        const img = new Image();
+        if (anim.data[i] && anim.data[i] !== '') {
+          img.src = 'data:image/png;base64,' + anim.data[i];
+          anim.frames.push(img);
+        }
+      }
+      anim.available = anim.frames.length === 16;
+    }
     let currentGirlAnimFrame = 0;
     let girlAnimationFrameAdvanceCounter = 0;
     let currentGirlAnimation = 'idle';
@@ -357,11 +368,22 @@
       }
     }
     function drawBoss() {
-      if (game.boy.isHit && bossAnimations.kick_ass && bossAnimations.kick_ass.available) {
+      if ((game.boy.isHit || game.boy.isDead) && bossAnimations.kick_ass && bossAnimations.kick_ass.available) {
         const anim = bossAnimations.kick_ass;
         const frameIdx = Math.floor(game.boy.hitAnimFrame);
         if (frameIdx < anim.frames.length && anim.frames[frameIdx]) {
           drawFlippedHorizontal(anim.frames[frameIdx], game.boy.x, game.boy.y, game.boy.width, game.boy.height);
+        }
+        // Avancer l'animation
+        if (!game.boy.isDead) {  // ← Si pas mort, avance
+          game.boy.hitAnimFrame += 1;
+        } else {  // ← Si mort, reste sur la dernière frame
+          game.boy.hitAnimFrame = Math.max(game.boy.hitAnimFrame, anim.frames.length - 1);
+        }
+        // Fin de l'animation (sauf si mort)?
+        if (game.boy.hitAnimFrame >= anim.frames.length && !game.boy.isDead) {
+          game.boy.isHit = false;
+          gamePaused = false;  // Dégèle le jeu
         }
       }
     }
@@ -449,11 +471,11 @@
         game.girl.isButtAttacking = true;
         game.girl.buttAttackTimer = 15;
         if (Math.abs(game.girl.x - game.boy.x) < 150) {
-          // Réduire les dégâts (0.5 au lieu de 1)
-          game.boy.lives -= 0.5;
+          game.boy.lives -= 1;
 
           // Déclencher l'animation kick ass du boss
           game.boy.isHit = true;
+          gamePaused = true;  // ⏸️ Gèle le jeu pendant l'animation
           game.boy.hitAnimFrame = 0;
           game.boy.hitAnimCounter = 0;
           game.boy.hitAnimDuration = 80;  // 16 frames * 2.4 = assez de temps!
@@ -467,6 +489,7 @@
           // Si le boss est mort, game over avec animation win
           if (game.boy.lives <= 0) {
             game.boy.lives = 0;
+            game.boy.isDead = true;  // ← Marque comme mort
           }
         }
       }
@@ -561,15 +584,14 @@
     }
     function draw() {
       if (bgImage.complete) { ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height); } else { ctx.fillStyle = '#87CEEB'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-      // Afficher le boss avec ses animations
-      drawBoss();
 
       if (!game.boy.isHit) {
         if (game.boy.isYelling && animationAvailable && boyYellFrames.length > 0) {
           const frame = boyYellFrames[currentYellFrame];
           if (frame) { drawFlippedHorizontal(frame, game.boy.x, game.boy.y, game.boy.width, game.boy.height); }
-        } else if (boyImage.complete) { drawFlippedHorizontal(boyImage, game.boy.x, game.boy.y, game.boy.width, game.boy.height); }
+        }
       }
+      drawBoss();  // ← Gère TOUT (animation + dessin normal)
       if (game.girl.isButtAttacking && girlAnimations.kick.available) {
         currentGirlAnimation = 'kick';
       } else if (game.girl.isJumping && girlAnimations.jump.available) {
@@ -618,13 +640,20 @@
       drawEffects();
     }
     let startTime = null;
+    let gamePaused = false;  // Gèle le jeu pendant l'animation du boss
     function gameLoop(timestamp) {
       if (!startTime) startTime = timestamp;
       const elapsed = (timestamp - startTime) / 1000;
       game.timeLeft = Math.max(0, 30 - elapsed);
       document.getElementById('timer').textContent = Math.ceil(game.timeLeft);
-      if (game.timeLeft <= 0 || game.girl.lives <= 0 || game.boy.lives <= 0) { endGame(); return; }
-      updateGirlMovement();
+      if (game.timeLeft <= 0 || game.girl.lives <= 0) { endGame(); return; }
+      console.log(game.boy.hitAnimFrame >= 40);
+      // Si le boss est mort, attendre juste l'animation (16 frames * 2.4 = ~40 frames)
+      if (game.boy.isDead && game.boy.hitAnimFrame >= 15) { endGame(); return; }
+
+      // ⏸️ Si le jeu est gelé (animation du boss), skip les updates
+      if (!gamePaused) {
+        updateGirlMovement();
       if (game.boy.isYelling && animationAvailable) {
         yellFrameAdvanceCounter += 1;
         if (yellFrameAdvanceCounter >= 2.4) { currentYellFrame++; yellFrameAdvanceCounter = 0; }
@@ -663,6 +692,7 @@
         game.boy.hitAnimDuration--;
         if (game.boy.hitAnimDuration <= 0) {
           game.boy.isHit = false;
+          gamePaused = false;  // ▶️ Reprendre le jeu
           game.boy.isYelling = true;  // Revenir à yell
           game.boy.yellTimer = game.boy.yellDuration;
 
@@ -677,6 +707,7 @@
       game.bubbles = game.bubbles.filter(b => { b.update(); return b.life > 0 && b.x > -100; });
       checkCollisions();
       if (game.girl.isButtAttacking) { game.girl.buttAttackTimer--; if (game.girl.buttAttackTimer <= 0) { game.girl.isButtAttacking = false; } }
+      }  // ← Fermer la condition if (!gamePaused)
       resizeCanvas();
       draw();
       requestAnimationFrame(gameLoop);
